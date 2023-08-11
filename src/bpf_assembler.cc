@@ -45,6 +45,7 @@ typedef class _bpf_assembler
         {"sub", 0x1},
         {"mul", 0x2},
         {"div", 0x3},
+        {"sdiv", 0x3},
         {"or", 0x4},
         {"and", 0x5},
         {"lsh", 0x6},
@@ -70,6 +71,10 @@ typedef class _bpf_assembler
         {"jle", 0xb},
         {"jslt", 0xc},
         {"jsle", 0xd},
+    };
+
+    const std::unordered_map<std::string, uint16_t> _bpf_signed_ops{
+        {"sdiv", 0x1},
     };
 
     // Labels discovered while parsing the assembly code.
@@ -253,9 +258,9 @@ typedef class _bpf_assembler
             inst.opcode |= EBPF_CLS_ALU64;
             alu_op = mnemonic;
         }
-        auto iter = _bpf_encode_alu_ops.find(alu_op);
+        auto opcode_iter = _bpf_encode_alu_ops.find(alu_op);
         // It is not possible to reach here with no match.
-        inst.opcode |= iter->second << 4;
+        inst.opcode |= opcode_iter->second << 4;
 
         inst.dst = _decode_register(operands[0]);
 
@@ -267,6 +272,12 @@ typedef class _bpf_assembler
                 inst.opcode |= EBPF_SRC_IMM;
                 inst.imm = _decode_imm32(operands[1]);
             }
+        }
+
+        auto offset_iter = _bpf_signed_ops.find(alu_op);
+        if (offset_iter != _bpf_signed_ops.end()) {
+            // we know that we found a signed operation that specifies an offset.
+            inst.offset = offset_iter->second;
         }
 
         return inst;
@@ -444,6 +455,7 @@ typedef class _bpf_assembler
         {"be16", {&_bpf_assembler::_encode_alu, 1}},  {"be32", {&_bpf_assembler::_encode_alu, 1}},
         {"be64", {&_bpf_assembler::_encode_alu, 1}},  {"call", {&_bpf_assembler::_encode_jmp, 2}},
         {"div", {&_bpf_assembler::_encode_alu, 2}},   {"div32", {&_bpf_assembler::_encode_alu, 2}},
+        {"sdiv", {&_bpf_assembler::_encode_alu, 2}},  {"sdiv32", {&_bpf_assembler::_encode_alu, 2}},
         {"exit", {&_bpf_assembler::_encode_jmp, 0}},  {"ja", {&_bpf_assembler::_encode_jmp, 1}},
         {"jeq", {&_bpf_assembler::_encode_jmp, 3}},   {"jeq32", {&_bpf_assembler::_encode_jmp, 3}},
         {"jge", {&_bpf_assembler::_encode_jmp, 3}},   {"jge32", {&_bpf_assembler::_encode_jmp, 3}},
